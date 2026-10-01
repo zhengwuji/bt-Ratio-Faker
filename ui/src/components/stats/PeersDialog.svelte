@@ -14,7 +14,7 @@
   let geoMap = $state({});
   let geoLoading = $state(false);
 
-  // 'ip:port' -> { online, peerId }(直连 BT 握手探测结果;手动触发后缓存)
+  // 'ip:port' -> { online, peerId, encrypted }(直连 BT 握手探测结果;手动触发后缓存)
   let probeMap = $state({});
   let probing = $state(false);
   let lastOpenedFor = null;
@@ -176,6 +176,7 @@
       name: rawId ? clientFromPeerId(rawId) : null,
       rawId,
       online: probe ? probe.online : null,
+      encrypted: probe ? !!probe.encrypted : false,
     };
   }
 </script>
@@ -213,9 +214,9 @@
 
     <div class="flex items-center justify-between gap-3 border-b border-border bg-muted/20 px-4 py-2">
       <p class="text-[11px] leading-snug text-muted-foreground">
-        tracker 的 compact 响应只含 IP/端口。点「探测客户端」会对每个 peer 直连一次标准 BT
-        握手识别其真实客户端 —— 这是所有下载器拿到 peer 列表后的正常行为,tracker
-        不感知,不产生账号风险。
+        tracker 的 compact 响应只含 IP/端口。点「探测客户端」会对每个 peer 直连标准 BT
+        握手(明文 + 加密双模式)识别其真实客户端 —— 这是所有下载器拿到 peer 列表后的正常行为,
+        tracker 不感知,不产生账号风险。实例配置了代理时自动经代理连接(与汇报同一出口)。
       </p>
       <button
         class="flex flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
@@ -223,7 +224,7 @@
         disabled={probing || !instanceId || !uniquePeers.length}
       >
         <Radar size={13} class={probing ? 'animate-pulse' : ''} />
-        {probing ? '探测中…' : '探测客户端'}
+        {probing ? '探测中…(单个对方最长约 12 秒)' : '探测客户端'}
       </button>
     </div>
 
@@ -284,7 +285,7 @@
                     {#if isSelf(peer)}
                       <span class="text-muted-foreground" title="本机实例,不探测">本机实例</span>
                     {:else if cell.name}
-                      <span title="peer_id: {cell.rawId}">{cell.name}</span>
+                      <span title="peer_id: {cell.rawId}({cell.encrypted ? '经加密握手识别' : '经明文握手识别'})">{cell.name}</span>
                     {:else}
                       <span class="text-muted-foreground" title="点击「探测客户端」识别对方客户端">
                         {cell.online === false ? '未响应' : '—'}
@@ -299,8 +300,9 @@
         <p class="mt-2 text-[10px] text-muted-foreground italic">
           共 {uniquePeers.length} 个 peer(重复行已合并)。IP 为对方与 tracker 通信的地址,可能与对方真实出口不同
           (NAT/代理)。<br />
-          客户端识别来自直连握手获取的对方 peer_id(BT 标准编码):绿点 = 握手成功(对方端口真实可达);
-          灰点 = 未响应(对方离线/NAT 后无法直连,不代表不在线做种)。探测使用本实例的 info_hash
+          客户端识别来自直连握手获取的对方 peer_id(明文 + MSE 加密双模式,自动尝试):
+          绿点 = 握手成功(对方端口真实可达、真实在线);灰点 = 未响应(对方离线/NAT
+          后/强制屏蔽连接,不代表不在线做种)。探测使用本实例的 info_hash
           与伪装 peer_id(与 tracker 汇报指纹一致),握手后立即断开、不交换任何数据;tracker
           完全感知不到 peer 直连,不会带来任何账号风险。
         </p>
