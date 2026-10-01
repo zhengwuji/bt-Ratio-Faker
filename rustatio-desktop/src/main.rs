@@ -328,6 +328,7 @@ fn main() {
             commands::get_client_types,
             commands::get_client_infos,
             commands::get_network_status,
+            commands::geo_lookup_ips,
             commands::write_file,
             commands::set_log_level,
             commands::detect_linux_package_type,

@@ -1954,6 +1954,7 @@
   bind:isOpen={peersDialogOpen}
   peers={$activeInstance?.stats?.peers || []}
   stats={$activeInstance?.stats || null}
+  myIp={networkStatus?.ip || ''}
 />
 
 <BaseModal

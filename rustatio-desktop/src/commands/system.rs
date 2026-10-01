@@ -86,6 +86,69 @@ pub struct DesktopNetworkStatus {
     error: Option<String>,
 }
 
+#[derive(serde::Serialize)]
+pub struct GeoResult {
+    pub ip: String,
+    pub country: String,
+    pub country_code: String,
+}
+
+/// 批量查询 IP 归属地(ip-api.com 免费接口,45 次/分钟,支持 v4/v6)
+#[tauri::command]
+pub async fn geo_lookup_ips(
+    ips: Vec<String>,
+    state: State<'_, crate::state::AppState>,
+) -> Result<Vec<GeoResult>, String> {
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct BatchItem {
+        status: String,
+        #[serde(default)]
+        country: String,
+        #[serde(rename = "countryCode", default)]
+        country_code: String,
+        query: String,
+    }
+
+    // 去重、限制数量
+    let mut unique: Vec<String> = Vec::new();
+    for ip in ips {
+        if !ip.is_empty() && !unique.contains(&ip) {
+            unique.push(ip);
+        }
+    }
+    unique.truncate(100);
+    if unique.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let url = "http://ip-api.com/batch?fields=status,country,countryCode,query";
+    let client = state.http_client.clone();
+    let body = serde_json::to_string(&unique).map_err(|e| format!("Geo serialize failed: {e}"))?;
+    let resp = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .body(body)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("Geo lookup failed: {e}"))?;
+
+    let text = resp.text().await.map_err(|e| format!("Geo read failed: {e}"))?;
+    let items: Vec<BatchItem> =
+        serde_json::from_str(&text).map_err(|e| format!("Geo parse failed: {e}"))?;
+
+    Ok(items
+        .into_iter()
+        .map(|it| GeoResult {
+            ip: it.query,
+            country: if it.status == "success" { it.country } else { String::new() },
+            country_code: if it.status == "success" { it.country_code } else { String::new() },
+        })
+        .collect())
+}
+
 #[tauri::command]
 pub async fn get_network_status(
     state: State<'_, crate::state::AppState>,
