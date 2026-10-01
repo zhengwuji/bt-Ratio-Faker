@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tauri::{Manager, State};
 
@@ -159,4 +160,115 @@ pub async fn get_network_status(
         active: status.bound_port.is_some(),
         error: status.last_error,
     })
+}
+
+#[derive(serde::Deserialize)]
+pub struct PeerProbeTarget {
+    pub ip: String,
+    pub port: u16,
+}
+
+#[derive(serde::Serialize)]
+pub struct PeerProbeResult {
+    pub ip: String,
+    pub port: u16,
+    /// 对方接受连接并完成 BT 握手(端口真实可达)
+    pub online: bool,
+    /// 对方握手响应中的 peer_id,可解析出真实客户端
+    pub peer_id: Option<String>,
+}
+
+/// 与 peer 列表中的对方做一次标准 BT 握手以获取其 peer_id,从而识别真实客户端。
+///
+/// 安全性:这是所有下载器拿到 tracker peer 列表后的正常行为(qB/Transmission 亦然),
+/// tracker 完全不感知 peer 直连,PT 站点无法据此判定任何异常。握手使用本实例自己的
+/// info_hash 与伪装 peer_id(与 announce 指纹完全一致),拿到对方握手响应后立即断开,
+/// 不交换任何 piece/扩展数据。仅由用户手动触发。
+#[tauri::command]
+pub async fn probe_peer_clients(
+    instance_id: u32,
+    targets: Vec<PeerProbeTarget>,
+    state: State<'_, crate::state::AppState>,
+) -> Result<Vec<PeerProbeResult>, String> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::sync::Semaphore;
+
+    let faker = {
+        let fakers = state.fakers.read().await;
+        let instance =
+            fakers.get(&instance_id).ok_or_else(|| format!("Instance {instance_id} not found"))?;
+        Arc::clone(&instance.faker)
+    };
+
+    let info_hash = faker.info_hash().await;
+    let our_peer_id: [u8; 20] = faker.peer_id_bytes().await.unwrap_or([0u8; 20]);
+
+    // 去重 + 过滤非法 IP,上限 100 个
+    let mut unique: Vec<(std::net::IpAddr, u16, String)> = Vec::new();
+    for t in targets {
+        if t.ip.is_empty() {
+            continue;
+        }
+        let Ok(ip) = t.ip.parse::<std::net::IpAddr>() else { continue };
+        if !unique.iter().any(|(uip, uport, _)| *uip == ip && *uport == t.port) {
+            unique.push((ip, t.port, t.ip));
+        }
+    }
+    unique.truncate(100);
+    if unique.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let semaphore = Arc::new(Semaphore::new(8));
+    let mut tasks = Vec::with_capacity(unique.len());
+
+    for (ip, port, ip_text) in unique {
+        let permits = Arc::clone(&semaphore);
+        tasks.push(tokio::spawn(async move {
+            let _permit = permits.acquire_owned().await;
+            let addr = std::net::SocketAddr::new(ip, port);
+            let outcome = tokio::time::timeout(std::time::Duration::from_secs(4), async {
+                let mut stream = tokio::net::TcpStream::connect(addr).await?;
+                let mut hs = Vec::with_capacity(68);
+                hs.push(19u8);
+                hs.extend_from_slice(b"BitTorrent protocol");
+                hs.extend_from_slice(&[0u8; 8]); // 保留字段全零(经典客户端行为)
+                hs.extend_from_slice(&info_hash);
+                hs.extend_from_slice(&our_peer_id);
+                stream.write_all(&hs).await?;
+                stream.flush().await?;
+                let mut buf = [0u8; 68];
+                stream.read_exact(&mut buf).await?;
+                if &buf[1..20] != b"BitTorrent protocol" {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "invalid protocol string",
+                    ));
+                }
+                Ok::<Vec<u8>, std::io::Error>(buf[48..68].to_vec())
+            })
+            .await;
+
+            let (online, peer_id) = match outcome {
+                Ok(Ok(raw)) => {
+                    let cleaned: String = raw
+                        .iter()
+                        .map(|&b| if (0x20..0x7f).contains(&b) { b as char } else { ' ' })
+                        .collect();
+                    (true, Some(cleaned))
+                }
+                _ => (false, None),
+            };
+
+            PeerProbeResult { ip: ip_text, port, online, peer_id }
+        }));
+    }
+
+    let mut results = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        if let Ok(r) = task.await {
+            results.push(r);
+        }
+    }
+    Ok(results)
 }

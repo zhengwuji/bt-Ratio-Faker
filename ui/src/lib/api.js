@@ -961,6 +961,11 @@ const tauriApi = {
     return invoke('geo_lookup_ips', { ips });
   },
 
+  probePeerClients: async (instanceId, targets) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke('probe_peer_clients', { instanceId: Number(instanceId), targets });
+  },
+
   getNetworkStatus: async () => {
     const { invoke } = await import('@tauri-apps/api/core');
     const local = await invoke('get_network_status');
