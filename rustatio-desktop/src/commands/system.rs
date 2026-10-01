@@ -124,7 +124,7 @@ pub async fn geo_lookup_ips(
         return Ok(Vec::new());
     }
 
-    let url = "http://ip-api.com/batch?fields=status,country,countryCode,query";
+    let url = "http://ip-api.com/batch?fields=status,country,countryCode,query&lang=zh-CN";
     let client = state.http_client.clone();
     let body = serde_json::to_string(&unique).map_err(|e| format!("Geo serialize failed: {e}"))?;
     let resp = client
