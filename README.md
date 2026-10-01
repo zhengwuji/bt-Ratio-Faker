@@ -2,116 +2,116 @@
   <img src="rustatio-desktop/icons/icon.png" alt="Rustatio" width="110">
 </div>
 
-# Rustatio 中文合并版
+# Rustatio (Chinese Merge Edition)
 
-现代 BitTorrent 比率管理工具 —— 全中文界面,合并 [mRatio](https://www.sb-innovation.de) 逆向精华功能的 [Rustatio](https://github.com/takitsu21/rustatio)(MIT)分支。
+A modern BitTorrent ratio management tool — a Chinese-localized fork of [Rustatio](https://github.com/takitsu21/rustatio) (MIT) merged with the best features reverse-engineered from [mRatio](https://www.sb-innovation.de).
 
-通过模拟主流 BT 客户端(qBittorrent / uTorrent / Transmission / Deluge / BitTorrent)的 tracker 汇报行为,管理你的分享率:自定义上传/下载速率、做种或下载状态、代理、停止条件等。
+Manage your share ratio by emulating popular torrent clients (qBittorrent / uTorrent / Transmission / Deluge / BitTorrent): custom upload/download rates, seeding or downloading state, proxy support, stop conditions, and more.
 
 > [!IMPORTANT]
-> 本工具仅供学习交流。在私人 tracker 上伪造上传/下载数据可能违反站点服务条款并导致封号,使用风险自负。
+> This tool is for **educational purposes only**. Faking upload/download statistics on private trackers may violate their terms of service and could result in an account ban. Use at your own risk.
 
-## ✨ 功能特性
+## ✨ Features
 
-- **🇨🇳 全中文界面**:设置、预设、提示、错误消息全部中文化
-- **🎭 客户端伪装**:支持 qBittorrent / uTorrent / Transmission / Deluge / BitTorrent,版本可自选
-- **📁 mRatioClients 伪装档案**:自动加载 `mRatioClients/*.mRClient`(精确复刻各客户端 peer_id / key 结构)
-- **📜 历史记录导入**:自动读取 `mRatioTorrents/*.mRSave`,打开软件即可恢复以前的种子实例
-- **🌐 代理设置**:SOCKS5 / HTTP,支持用户名密码,一键测试代理(显示出口 IP),可应用到单个实例或全部实例,状态一目了然
-- **🌱 做种 / 下载切换**:种子卡片上一键切换"做种(完整 100%)"或"下载中(可设完成度)"
-- **🔗 网站直达**:自动从 tracker 推导种子所属网站,点击即在浏览器打开登录
-- **📡 运行状态反馈**:运行中实时显示"汇报正常 · 第 N 次 · 做种 S / 下载 L",正常与否一眼可见
-- **💾 自动保存**:所有设置修改即改即存,下次打开软件完整还原(界面提示"已自动保存")
-- **🧹 批量管理**:网格视图多选批量操作、批量导入、一键清理空白实例
-- **👁 监视文件夹**:放入 .torrent 自动创建实例、可自动开始
-- **🎲 逼真行为**:速率随机化、渐进速率、随机分享率、空闲检测(无下载者/做种者时 idle)
-- **🛑 丰富停止条件**:目标比率 / 最大上传 / 最大下载 / 做种时长,支持停止后动作
-- **📝 调试日志**:记录所有功能使用与错误,方便排查(见下方"常见问题")
+- **🎭 Client emulation** — qBittorrent / uTorrent / Transmission / Deluge / BitTorrent with selectable versions
+- **📁 mRatioClients profiles** — auto-loads `mRatioClients/*.mRClient` (39 client profiles with exact peer_id / key patterns)
+- **📜 History import** — automatically restores your previous torrent instances from `mRatioTorrents/*.mRSave` on startup
+- **🌐 Proxy support** — SOCKS5 / HTTP with username & password, one-click proxy test (shows exit IP), apply to the current instance or all instances, live status indicator
+- **🌱 Seeding / Downloading toggle** — switch any torrent between "Seeding (100% complete)" and "Downloading (custom completion)" right from the torrent card
+- **🔗 Site shortcut** — derives the torrent's website from its tracker; click to open and log in
+- **📡 Live announce feedback** — while running, shows "Announce OK · #N · Seeders S / Leechers L" so you know it is actually working
+- **💾 Auto-save** — every setting change is persisted instantly and fully restored on next launch (with a visible "saved" indicator)
+- **🧹 Batch management** — grid view with multi-select bulk actions, bulk import, one-click blank-instance cleanup
+- **👁 Watch folder** — drop `.torrent` files into a folder to auto-create instances (auto-start optional)
+- **🎲 Realistic behavior** — rate randomization, progressive rates, randomized stop ratio, idle detection (no leechers / no seeders)
+- **🛑 Stop conditions** — target ratio / max uploaded / max downloaded / seed time, with post-stop actions
+- **📝 Debug log** — records every feature usage and error for easy troubleshooting (see FAQ)
+- **🈶 Chinese UI** — the interface is fully localized in Chinese (settings, presets, dialogs, error messages)
 
-## 📥 下载安装
+## 📥 Download
 
-前往 [Releases](https://github.com/zhengwuji/bt-Ratio-Faker/releases) 页面,下载最新版:
+Grab the latest build from the [Releases](https://github.com/zhengwuji/bt-Ratio-Faker/releases) page:
 
-- `Rustatio-vX.Y-win64.exe` —— Windows 64 位,单文件免安装,双击即用
+- `Rustatio-vX.Y-win64.exe` — Windows 64-bit, single portable file, no installation needed
 
-每个版本附带中文更新说明。标题栏显示版本号(如 `Rustatio v11`),方便确认是否新版。
+Every release ships with Chinese release notes. The window title shows the build number (e.g. `Rustatio v11`) so you can always tell which version you are running.
 
-## 🚀 快速上手
+## 🚀 Quick Start
 
-1. **选择种子**:点击「种子文件」卡片的【更换】或拖入 `.torrent` 文件
-2. **选择状态**:在「运行状态」卡选择【做种】(种子已下完,纯做种)或【下载中】(可设完成度)
-3. **配置代理(可选)**:「代理设置」填协议/地址/端口(如 SOCKS5 / 127.0.0.1 / 11111)→【测试代理】验证 →【应用到当前实例】
-4. **设置速率**:「传输速率」填上传/下载速率(KB/s),建议开启随机化并避免整数速率
-5. **开始**:点右上角绿色▶开始按钮,状态条出现「汇报正常」即表示正常工作
-6. **停止条件(可选)**:设置目标比率 / 最大上传等,达到后自动停止
+1. **Pick a torrent** — click【更换】on the torrent card or drag & drop a `.torrent` file
+2. **Pick the state** — choose【做种】(seeding, 100% complete) or【下载中】(downloading, custom completion) on the run-state card
+3. **Proxy (optional)** — in the proxy card select scheme/host/port (e.g. SOCKS5 / 127.0.0.1 / 11111) → click the test button to verify → click apply-to-current-instance
+4. **Set rates** — upload/download rates in KB/s; keep randomization on and avoid round numbers
+5. **Start** — hit the green ▶ button; when the status bar shows "Announce OK" you are up and running
+6. **Stop conditions (optional)** — set a target ratio / upload cap, etc. The instance stops automatically when reached
 
-### 常见问题
+### FAQ
 
-- **提示"Tracker 拒绝了当前端口(已列入黑名单)"**:把实例「端口」从 6881 改成高位端口(如 51413),重新开始
-- **提示"Tracker 不可用,N 秒后重试"**:网络不通或 tracker 暂时故障;如使用代理,确认代理可用并已应用到该实例
-- **查日志**:`%APPDATA%\rustatio\rustatio-debug.log`(每个功能使用与报错都有记录)
+- **"Tracker rejected the current port (blacklisted)"** — change the instance port from 6881 to a high port (e.g. 51413) and restart
+- **"Tracker unavailable, retrying in N s"** — network issue or tracker outage; if you use a proxy, make sure it works and is applied to this instance
+- **Logs** — `%APPDATA%\rustatio\rustatio-debug.log` records every feature usage and error
 
-## 🔨 从源码构建
+## 🔨 Building from Source
 
-环境要求:Rust(stable)+ Node.js 20 + wasm-pack
+Requirements: Rust (stable) + Node.js 20 + wasm-pack
 
 ```bash
-# 1. 构建 WASM 模块
+# 1. Build the WASM module
 cd rustatio-wasm
 wasm-pack build --target web --out-dir ../ui/src/lib/wasm --release
 
-# 2. 构建前端
+# 2. Build the frontend
 cd ../ui
 npm ci
 npx vite build
 
-# 3. 编译桌面程序(产物在 target/release/rustatio-desktop.exe)
+# 3. Build the desktop app (output: target/release/rustatio-desktop.exe)
 cd ..
 cargo build --release -p rustatio
 ```
 
-Windows 下也可直接运行 `scripts/重新编译.bat` 一键完成。
+On Windows you can also just run `scripts/重新编译.bat` for a one-click build.
 
-### 自动编译(CI)
+### CI (Automatic Builds)
 
-- 推送代码到 `main` 分支(修改 README.md 除外)会自动触发 GitHub Actions 编译 Windows 版,可在 Actions 页面下载产物
-- 推送 `v*` 标签会自动编译并创建 Release,附上中文更新说明:
+- Every push to `main` (except README-only changes) automatically builds the Windows binary via GitHub Actions — download it from the Actions page
+- Pushing a `v*` tag automatically builds and publishes a GitHub Release with Chinese release notes:
 
 ```bash
-git tag -a v12 -m "中文更新内容写在这里"
+git tag -a v12 -m "Chinese release notes go here"
 git push origin v12
 ```
 
-## 📋 更新日志
+## 📋 Changelog
 
-| 版本 | 主要更新 |
+| Version | Highlights |
 | --- | --- |
-| v11 | 删除跳转原作者仓库的链接;新增"可视化保存"(设置改动自动保存并显示已保存提示) |
-| v10 | 运行中新增「汇报正常」实时反馈;修复代理输入框被清空的问题 |
-| v9 | Tracker 拒绝原因透传(端口黑名单等直接显示中文提示);默认端口改为 51413(不易被拉黑) |
-| v8 | 种子卡片新增「做种 / 下载中」一键切换 |
-| v7 | 初始状态新增「状态模式」;进度卡做种模式绿色满进度显示 |
-| v6 | 修复 scrape 误判导致"Tracker 不可用";代理卡片新增应用到当前实例 / 取消代理 / 状态显示 |
-| v5 | 种子所属网站移到卡片下方醒目横幅,整块可点击 |
-| v4 | 种子文件卡片显示所属网站并可一键打开登录 |
-| v3 | 界面英文清零(预设卡片/检测提示/网格视图/全部弹窗) |
-| v2 | 代理「应用到全部实例」;版本号 vN 递增标识 |
-| v1 | 首个中文合并版:mRatioClients 档案、历史记录导入、清理空白实例、调试日志、代理测试、移除更新提示 |
+| v11 | Removed outbound links to the upstream repo; added visible auto-save indicator (all settings persist across restarts) |
+| v10 | Live "Announce OK" feedback while running; fixed proxy inputs being cleared |
+| v9 | Tracker rejection reasons surfaced in Chinese (port blacklisting, etc.); default port changed to 51413 |
+| v8 | Seeding / Downloading toggle on the torrent card |
+| v7 | State-mode selector (seeding vs downloading); green full-progress bar in seeding mode |
+| v6 | Fixed scrape failures being misreported as "Tracker unavailable"; proxy card gained apply-to-current / clear-proxy / status line |
+| v5 | Torrent website moved into a prominent clickable banner below the card |
+| v4 | Torrent card shows the tracker's website with one-click open |
+| v3 | Full Chinese localization (preset cards, detection tips, grid view, all dialogs) |
+| v2 | Apply-proxy-to-all-instances; vN build number in the window title |
+| v1 | First Chinese merge: mRatioClients profiles, history import, blank-instance cleanup, debug log, proxy test, update prompt removed |
 
-## 🙏 致谢
+## 🙏 Credits
 
-- [takitsu21/Rustatio](https://github.com/takitsu21/rustatio) —— 上游项目(MIT License)
-- [mRatio](https://www.sb-innovation.de) —— 伪装档案与正则模板功能来源
-- 基于 [Tauri](https://tauri.app/)、[Svelte 5](https://svelte.dev/)、[Tailwind CSS](https://tailwindcss.com/) 构建
+- [takitsu21/Rustatio](https://github.com/takitsu21/rustatio) — upstream project (MIT License)
+- [mRatio](https://www.sb-innovation.de) — source of the emulation profiles and pattern templates
+- Built with [Tauri](https://tauri.app/), [Svelte 5](https://svelte.dev/), and [Tailwind CSS](https://tailwindcss.com/)
 
-## 📄 许可证
+## 📄 License
 
-本项目基于 [MIT License](LICENSE) 开源。
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
 <div align="center">
-  <img src="screenshots/light-theme.png" alt="标准视图" width="45%">
+  <img src="screenshots/light-theme.png" alt="Standard view" width="45%">
   &nbsp;
-  <img src="screenshots/dark-theme.png" alt="深色主题" width="45%">
+  <img src="screenshots/dark-theme.png" alt="Dark theme" width="45%">
 </div>
