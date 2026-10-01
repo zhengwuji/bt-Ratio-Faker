@@ -39,6 +39,38 @@ fn find_mr_dirs(dir_name: &str) -> Vec<std::path::PathBuf> {
     out
 }
 
+/// 确保 mRatioClients / mRatioTorrents 目录存在(在 exe 同级创建,便于用户放入档案/历史文件)
+#[tauri::command]
+pub async fn ensure_mr_dirs(app: AppHandle) -> Result<Vec<String>, String> {
+    let mut created = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(base) = exe.parent() {
+            for name in ["mRatioClients", "mRatioTorrents"] {
+                let dir = base.join(name);
+                if !dir.exists() {
+                    match std::fs::create_dir_all(&dir) {
+                        Ok(()) => {
+                            created.push(name.to_string());
+                            log_and_emit!(&app, info, "已创建目录 {}: {}", name, dir.display());
+                        }
+                        Err(e) => {
+                            log_and_emit!(&app, warn, "创建目录 {} 失败: {}", name, e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !created.is_empty() {
+        log_and_emit!(
+            &app,
+            info,
+            "提示:把 .mRClient 伪装档案放入 mRatioClients、.mRSave 历史放入 mRatioTorrents 即可自动加载"
+        );
+    }
+    Ok(created)
+}
+
 /// 列出可用的 .mRClient 伪装档案
 #[tauri::command]
 pub async fn list_mr_clients(app: AppHandle) -> Result<Vec<MrClientProfile>, String> {

@@ -6,7 +6,7 @@
   import InlineHelp from '$lib/components/common/InlineHelp.svelte';
   import { cn } from '$lib/utils.js';
   import { instances as instancesStore } from '$lib/instanceStore.js';
-  import { Settings, ArrowUpDown, Clock, Timer, Upload, Download, Lock, Fingerprint, Globe, CheckCircle2, Ban } from '@lucide/svelte';
+  import { Settings, ArrowUpDown, Clock, Timer, Upload, Download, Lock, Fingerprint, Globe, CheckCircle2, Ban, ExternalLink, ChevronDown } from '@lucide/svelte';
   import ClientIcon from './ClientIcon.svelte';
   import ClientSelect from './ClientSelect.svelte';
   import VersionSelect from './VersionSelect.svelte';
@@ -385,6 +385,52 @@
     } else {
       localCompletionPercent = 0;
       updateValue('completionPercent', 0);
+    }
+  }
+
+  // 获取更多伪装档案:打开 .mRClient 档案的发布/搜索页面(在系统浏览器中打开)
+  const isTauriForm = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  let showProfileSources = $state(false);
+  const profileSources = [
+    {
+      name: 'SB Innovation 论坛 · mRatio Client Files',
+      desc: '官方档案发布版块(需论坛账号,持续更新)',
+      url: 'https://www.sb-innovation.de/forumdisplay.php?273-mRatio-Client-Files',
+    },
+    {
+      name: 'SB Innovation 论坛首页',
+      desc: 'mRatio 主站,注册后可下载全部档案',
+      url: 'https://www.sb-innovation.de/',
+    },
+    {
+      name: 'GitHub 代码搜索 "mRClient"',
+      desc: '搜索全网托管在 GitHub 的 .mRClient 档案(需登录 GitHub)',
+      url: 'https://github.com/search?q=mRClient&type=code',
+    },
+    {
+      name: 'Google 搜索 ".mRClient 下载"',
+      desc: '聚合搜索其它可能提供档案的站点',
+      url: 'https://www.google.com/search?q=mRatio+.mRClient+download',
+    },
+    {
+      name: 'Bing 搜索 ".mRClient 下载"',
+      desc: '聚合搜索其它可能提供档案的站点',
+      url: 'https://www.bing.com/search?q=mRatio+.mRClient+%E4%B8%8B%E8%BD%BD',
+    },
+  ];
+
+  async function openProfileSource(url) {
+    if (!url) return;
+    if (isTauriForm) {
+      try {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(url);
+      } catch (e) {
+        console.error('打开链接失败:', e);
+        window.open(url, '_blank', 'noopener');
+      }
+    } else {
+      window.open(url, '_blank', 'noopener');
     }
   }
 
@@ -881,7 +927,35 @@
         <div class="mb-1.5 flex items-center gap-2">
           <Label class="text-xs text-muted-foreground">伪装档案(mRatioClients)</Label>
           <InlineHelp text="选择 .mRClient 档案,自动填充下方 peer_id/key 模板;也可手动填写" />
+          <button
+            type="button"
+            class="ml-auto inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+            onclick={() => (showProfileSources = !showProfileSources)}
+            title="下载别人做好的 .mRClient 伪装档案"
+          >
+            <Download size={12} />获取档案<ChevronDown size={11} />
+          </button>
         </div>
+        {#if showProfileSources}
+          <div class="mb-2 rounded-lg border border-border bg-muted/40 p-2 space-y-1">
+            <p class="text-[10px] text-muted-foreground px-1 pb-1">
+              档案放到软件旁的 mRatioClients 文件夹即可自动加载(下载后无需重启,重新打开软件生效)
+            </p>
+            {#each profileSources as src (src.url)}
+              <button
+                type="button"
+                class="w-full flex items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted transition-colors cursor-pointer bg-transparent border-0"
+                onclick={() => openProfileSource(src.url)}
+              >
+                <ExternalLink size={13} class="mt-0.5 flex-shrink-0 text-primary" />
+                <span class="min-w-0">
+                  <span class="block text-xs font-medium text-foreground">{src.name}</span>
+                  <span class="block text-[10px] text-muted-foreground">{src.desc}</span>
+                </span>
+              </button>
+            {/each}
+          </div>
+        {/if}
         <select
           class="h-9 w-full rounded-md border border-border bg-card px-2 text-xs"
           value=""

@@ -299,6 +299,7 @@ fn main() {
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::create_instance,
+            commands::ensure_mr_dirs,
             commands::list_mr_clients,
             commands::list_mr_history,
             commands::import_history_instances,

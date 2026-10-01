@@ -866,6 +866,10 @@ const tauriApi = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke('list_mr_clients');
   },
+
+  async ensureMrDirs() {
+    return invoke('ensure_mr_dirs');
+  },
   listMrHistory: async () => {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke('list_mr_history');

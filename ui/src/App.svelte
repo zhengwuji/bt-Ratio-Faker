@@ -471,8 +471,13 @@
       devLog('error', 'mRatio history import failed:', error);
     }
 
-    // mRatio 伪装档案列表(桌面模式)
+    // mRatio 伪装档案列表(桌面模式);先确保目录存在,便于用户放入档案/历史文件
     if (isTauri) {
+      try {
+        await api.ensureMrDirs();
+      } catch (error) {
+        console.error('Failed to ensure mRatio dirs:', error);
+      }
       try {
         mrProfiles = await api.listMrClients();
       } catch (error) {
