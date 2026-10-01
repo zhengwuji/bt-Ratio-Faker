@@ -196,6 +196,7 @@ pub async fn stop_faker(
 
 #[tauri::command]
 pub async fn update_faker(instance_id: u32, state: State<'_, AppState>) -> Result<(), String> {
+    state.apply_global_rate_limits().await;
     set_instance_label(&state, instance_id, None);
 
     let faker = {
@@ -215,6 +216,7 @@ pub async fn update_stats_only(
     instance_id: u32,
     state: State<'_, AppState>,
 ) -> Result<FakerStats, String> {
+    state.apply_global_rate_limits().await;
     set_instance_label(&state, instance_id, None);
 
     let faker = {

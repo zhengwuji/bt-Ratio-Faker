@@ -102,6 +102,39 @@
     }
   });
 
+  // 全局上传上限(防封:所有运行实例目标速率之和的上限,0 = 不限)
+  let globalMaxUpload = $state(0);
+  let globalMaxUploadSaved = $state('');
+
+  $effect(() => {
+    if (isOpen) {
+      loadGlobalMaxUpload();
+    }
+  });
+
+  async function loadGlobalMaxUpload() {
+    try {
+      const config = await api.getConfig();
+      globalMaxUpload = Math.round(config?.faker?.global_max_upload ?? 0);
+    } catch (e) {
+      console.warn('Failed to load global max upload:', e);
+    }
+  }
+
+  async function saveGlobalMaxUpload() {
+    try {
+      const value = Math.max(0, Math.round(globalMaxUpload || 0));
+      const config = await api.getConfig();
+      config.faker = { ...config.faker, global_max_upload: value };
+      await api.updateConfig(config);
+      globalMaxUpload = value;
+      globalMaxUploadSaved = value > 0 ? `已保存:全部运行实例总上传不超过 ${value} KB/s` : '已保存:不限速';
+      setTimeout(() => (globalMaxUploadSaved = ''), 5000);
+    } catch (e) {
+      globalMaxUploadSaved = `保存失败: ${e}`;
+    }
+  }
+
   // Detection avoidance tips
   const detectionTips = [
     {
@@ -548,6 +581,34 @@
               </div>
             </div>
           {/if}
+
+          <!-- 全局速率上限(防封) -->
+          <div class="border border-border rounded-lg p-4">
+            <h3 class="font-semibold text-foreground mb-2">全局上传上限(防封)</h3>
+            <p class="text-sm text-muted-foreground mb-3">
+              所有运行实例的目标上传速率之和超过此值时,自动按比例下调,防止 tracker 看到物理上不可能的全局速率。0 = 不限。
+            </p>
+            <div class="flex items-center gap-3">
+              <label for="globalMaxUpload" class="text-sm font-medium min-w-[60px]">上限</label>
+              <input
+                id="globalMaxUpload"
+                type="number"
+                bind:value={globalMaxUpload}
+                min="0"
+                step="100"
+                class="px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 w-40"
+              />
+              <span class="text-sm text-muted-foreground">KB/s</span>
+              <button
+                type="button"
+                class="h-8 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                onclick={saveGlobalMaxUpload}
+              >保存</button>
+            </div>
+            {#if globalMaxUploadSaved}
+              <p class="mt-2 text-xs text-stat-upload">{globalMaxUploadSaved}</p>
+            {/if}
+          </div>
 
           <!-- Theme Section -->
           <div class="border border-border rounded-lg p-4">

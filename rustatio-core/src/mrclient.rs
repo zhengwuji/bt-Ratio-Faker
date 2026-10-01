@@ -59,6 +59,14 @@ pub struct MrClientProfile {
     pub key_pattern: Option<String>,
     /// 要求的最低 mRatio 版本(外层 v 字段,如 "5.0.0")
     pub min_version: Option<String>,
+    /// announce 查询参数模板(Announce 字段,占位符 [HASH][PEERID][KEY][PORT][EVENT][UPLOAD][DOWNLOAD][LEFT][NUMWANT])
+    pub announce_query_template: Option<String>,
+    /// 上传报告口径(ReportUploadAs:0=字节,1=按 piece 取整,2=按 16KB 取整)
+    pub report_upload_as: i8,
+    /// 下载报告口径(ReportDownloadAs)
+    pub report_download_as: i8,
+    /// 剩余量报告口径(ReportLeftAs)
+    pub report_left_as: i8,
 }
 
 fn latin1(bytes: &[u8]) -> String {
@@ -157,6 +165,21 @@ pub fn parse_mr_client(file_name: &str, data: &[u8]) -> Result<MrClientProfile, 
         }
     };
 
+    // mRatio announce 模板与报告口径(旧档案可能缺省,退化为内置参数序)
+    let announce_query_template = bencode::get_bytes(&inner, "Announce")
+        .ok()
+        .map(|b| latin1(&b))
+        .filter(|t| !t.is_empty());
+    let parse_mode = |key: &str| -> i8 {
+        bencode::get_bytes(&inner, key)
+            .ok()
+            .and_then(|b| latin1(&b).trim().parse::<i8>().ok())
+            .unwrap_or(0)
+    };
+    let report_upload_as = parse_mode("ReportUploadAs");
+    let report_download_as = parse_mode("ReportDownloadAs");
+    let report_left_as = parse_mode("ReportLeftAs");
+
     Ok(MrClientProfile {
         file_name: file_name.to_string(),
         name,
@@ -164,6 +187,10 @@ pub fn parse_mr_client(file_name: &str, data: &[u8]) -> Result<MrClientProfile, 
         peer_id_pattern,
         key_pattern,
         min_version,
+        announce_query_template,
+        report_upload_as,
+        report_download_as,
+        report_left_as,
     })
 }
 

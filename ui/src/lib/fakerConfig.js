@@ -57,5 +57,13 @@ export function buildFakerConfig(instance, clientVersions = {}, opts = {}) {
     peer_id_pattern: instance.peerIdPattern?.trim() || null,
     key_pattern: instance.keyPattern?.trim() || null,
     proxy_url: instance.proxyUrl?.trim() || null,
+    schedule_slow_enabled: instance.scheduleSlowEnabled ?? false,
+    schedule_slow_start_utc: instance.scheduleSlowStartUtc ?? 15,
+    schedule_slow_end_utc: instance.scheduleSlowEndUtc ?? 0,
+    schedule_slow_scale: instance.scheduleSlowScale ?? 0.3,
+    announce_query_template: instance.announceQueryTemplate?.trim() || null,
+    report_upload_as: instance.reportUploadAs ?? 0,
+    report_download_as: instance.reportDownloadAs ?? 0,
+    report_left_as: instance.reportLeftAs ?? 0,
   };
 }

@@ -53,6 +53,33 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// 全局上传上限分配:所有实例目标速率之和超过 config.faker.global_max_upload 时按比例缩放。
+    /// 由每次 stats 更新命令调用(前端周期触发),cap<=0 表示不限。
+    pub async fn apply_global_rate_limits(&self) {
+        let cap = { self.config.read().await.faker.global_max_upload };
+        let fakers = self.fakers.read().await;
+        if fakers.is_empty() {
+            return;
+        }
+        if cap <= 0.0 {
+            for inst in fakers.values() {
+                inst.faker.set_rate_scale(1.0).await;
+            }
+            return;
+        }
+        let mut total = 0.0;
+        for inst in fakers.values() {
+            let rate = inst.faker.upload_rate_target().await;
+            if rate > 0.0 {
+                total += rate;
+            }
+        }
+        let scale = if total > cap { cap / total } else { 1.0 };
+        for inst in fakers.values() {
+            inst.faker.set_rate_scale(scale).await;
+        }
+    }
+
     pub async fn attach_peer_listener(&self, listener: PeerListenerHandle) {
         *self.peer_listener.write().await = Some(listener);
         self.refresh_peer_listener_port().await;

@@ -1448,6 +1448,52 @@
 
   // 运行中"汇报正常"反馈:tracker_error 为空且 announce 计数在增长即视为正常
   // (announceCountTracker 记录各实例上次看到的计数,用于区分"等待首次汇报")
+  // 防封:客户端混用检测 —— 同一 IP/端口历史上出现多种 peer_id 前缀会被 tracker 关联
+  const clientDisplayNames = {
+    qbittorrent: 'qBittorrent',
+    utorrent: 'µTorrent',
+    transmission: 'Transmission',
+    deluge: 'Deluge',
+    bittorrent: 'BitTorrent',
+    rtorrent: 'rTorrent',
+  };
+  let clientMix = $derived.by(() => {
+    const counts = {};
+    for (const inst of $instances) {
+      const key = inst.selectedClient || 'qbittorrent';
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    const keys = Object.keys(counts);
+    if (keys.length <= 1) return null;
+    const sorted = keys.sort((a, b) => counts[b] - counts[a]);
+    const top = sorted[0];
+    const others = sorted.slice(1).reduce((n, k) => n + counts[k], 0);
+    return { top, topName: clientDisplayNames[top] || top, others, keys: sorted, counts };
+  });
+  function unifyClients() {
+    if (!clientMix) return;
+    if (
+      !window.confirm(
+        `把全部实例的客户端伪装统一为 ${clientMix.topName}?
+(运行中的实例保持不变,其它 ${clientMix.others} 个实例将被修改)`
+      )
+    )
+      return;
+    let changed = 0;
+    for (const inst of $instances) {
+      if ((inst.selectedClient || 'qbittorrent') === clientMix.top) continue;
+      if (inst.isRunning) continue;
+      instanceActions.updateInstance(inst.id, {
+        selectedClient: clientMix.top,
+        selectedClientVersion: null,
+      });
+      syncConfigToServer(inst.id);
+      changed += 1;
+    }
+    window.alert(`已统一 ${changed} 个实例的客户端伪装为 ${clientMix.topName}`);
+    devLog('info', `客户端伪装统一为 ${clientMix.top}: ${changed} 个实例`);
+  }
+
   const announceCountTracker = new Map();
   function getAnnounceFeedback(instance) {
     const stats = instance?.stats;
@@ -1660,6 +1706,25 @@
         >
           <AlertTriangle size={16} class="flex-shrink-0" />
           该种子已被网站删除(Tracker 上已不存在)—— 不用继续做这种子了,建议停止并删除该实例
+        </div>
+      {/if}
+
+      {#if $viewMode === 'standard' && clientMix}
+        <div
+          class="mx-auto mb-2 flex max-w-7xl items-center gap-2 rounded-xl border-2 border-orange-500/50 bg-orange-500/10 px-4 py-2.5 text-sm text-orange-600 dark:text-orange-400"
+        >
+          <span class="font-semibold">防封提醒:</span>
+          <span class="min-w-0 flex-1">
+            检测到 {clientMix.keys.length} 种客户端伪装混用({clientMix.keys
+              .map(k => `${clientDisplayNames[k] || k} ×${clientMix.counts[k]}`)
+              .join(' / ')})。同一 IP 历史上出现多种客户端指纹容易被 tracker 关联,建议统一。
+          </span>
+          <button
+            class="flex-shrink-0 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 transition-colors cursor-pointer"
+            onclick={unifyClients}
+          >
+            一键统一为 {clientMix.topName}
+          </button>
         </div>
       {/if}
 

@@ -60,10 +60,12 @@ impl HttpClient for ReqwestHttpClient {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum TrackerEvent {
     Started,
     Stopped,
     Completed,
+    #[default]
     None,
 }
 
@@ -78,7 +80,7 @@ impl TrackerEvent {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AnnounceRequest {
     pub info_hash: [u8; 20],
     pub peer_id: String,
@@ -93,6 +95,15 @@ pub struct AnnounceRequest {
     pub numwant: Option<u32>,
     pub key: Option<String>,
     pub tracker_id: Option<String>,
+    /// mRatio Announce 模板(占位符 [HASH][PEERID][KEY][PORT][EVENT][UPLOAD][DOWNLOAD][LEFT][NUMWANT]);
+    /// 存在时整个查询串按模板渲染,精确复刻客户端参数顺序
+    pub get_template: Option<String>,
+    /// 报告口径:0=字节,1=按 piece 取整,2=按 16KB 取整(mRatio ReportUploadAs 语义)
+    pub report_upload_as: i8,
+    pub report_download_as: i8,
+    pub report_left_as: i8,
+    /// piece 长度(口径 1 换算用)
+    pub piece_len: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,6 +226,13 @@ impl<C: HttpClient> TrackerClient<C> {
 
     /// Build announce URL with all parameters
     fn build_announce_url(&self, tracker_url: &str, request: &AnnounceRequest) -> String {
+        // mRatio 模板:按档案参数顺序渲染,精确复刻客户端指纹
+        if let Some(template) = request.get_template.as_deref() {
+            if !template.is_empty() {
+                return self.render_template_url(tracker_url, request, template);
+            }
+        }
+
         // Build query parameters manually since info_hash needs special encoding
         let info_hash_encoded: String =
             request.info_hash.iter().fold(String::new(), |mut acc, b| {
@@ -265,6 +283,49 @@ impl<C: HttpClient> TrackerClient<C> {
         let separator = if tracker_url.contains('?') { '&' } else { '?' };
 
         format!("{tracker_url}{separator}{query_string}")
+    }
+
+    /// mRatio 模板渲染:按档案里的参数顺序构造查询串,精确复刻客户端指纹
+    fn render_template_url(
+        &self,
+        tracker_url: &str,
+        request: &AnnounceRequest,
+        template: &str,
+    ) -> String {
+        let hash: String = request.info_hash.iter().fold(String::new(), |mut acc, b| {
+            let _ = write!(acc, "%{b:02X}");
+            acc
+        });
+        let event_part = request
+            .event
+            .as_str()
+            .map(|event| format!("&event={event}"))
+            .unwrap_or_default();
+        let upload = apply_report_mode(request.uploaded, request.piece_len, request.report_upload_as);
+        let download =
+            apply_report_mode(request.downloaded, request.piece_len, request.report_download_as);
+        let left = apply_report_mode(request.left, request.piece_len, request.report_left_as);
+        let numwant = if matches!(request.event, TrackerEvent::Stopped) {
+            "0".to_string()
+        } else {
+            request.numwant.map(|n| n.to_string()).unwrap_or_default()
+        };
+
+        let query = template
+            .replace("[HASH]", &hash)
+            .replace("[PEERID]", &request.peer_id)
+            .replace("[KEY]", request.key.as_deref().unwrap_or(""))
+            .replace("[PORT]", &request.port.to_string())
+            .replace("[EVENT]", &event_part)
+            .replace("[UPLOAD]", &upload.to_string())
+            .replace("[DOWNLOAD]", &download.to_string())
+            .replace("[LEFT]", &left.to_string())
+            .replace("[NUMWANT]", &numwant)
+            .replace("[IPv4]", "")
+            .replace("[IPv6]", "");
+
+        let separator = if tracker_url.contains('?') { '&' } else { '?' };
+        format!("{tracker_url}{separator}{query}")
     }
 
     #[allow(clippy::unused_self)]
@@ -525,6 +586,7 @@ mod tests {
             numwant: Some(50),
             key: Some("abc".to_string()),
             tracker_id: Some("id".to_string()),
+            ..Default::default()
         }
     }
 
@@ -809,5 +871,16 @@ mod tests {
 
         assert!(matches!(res, Err(TrackerError::InvalidResponse(_))));
         Ok(())
+    }
+}
+
+/// mRatio ReportUploadAs 口径换算:0=字节,1=按 piece 取整,2=按 16KB 取整
+fn apply_report_mode(value: u64, piece_len: u64, mode: i8) -> u64 {
+    match mode {
+        1 if piece_len > 0 => {
+            ((value as f64 / piece_len as f64).round() as u64).saturating_mul(piece_len)
+        }
+        2 => ((value as f64 / 16384.0).round() as u64).saturating_mul(16384),
+        _ => value,
     }
 }

@@ -5,6 +5,7 @@
   import Checkbox from '$lib/components/ui/checkbox.svelte';
   import InlineHelp from '$lib/components/common/InlineHelp.svelte';
   import { cn } from '$lib/utils.js';
+  import { extractTrackerHost } from '$lib/trackerUtils.js';
   import { instances as instancesStore } from '$lib/instanceStore.js';
   import { Settings, ArrowUpDown, Clock, Timer, Upload, Download, Lock, Fingerprint, Globe, CheckCircle2, Ban, ExternalLink, ChevronDown } from '@lucide/svelte';
   import ClientIcon from './ClientIcon.svelte';
@@ -40,6 +41,10 @@
     peerIdPattern = '',
     keyPattern = '',
     proxyUrl = '',
+    scheduleSlowEnabled = false,
+    scheduleSlowStartUtc = 15,
+    scheduleSlowEndUtc = 0,
+    scheduleSlowScale = 0.3,
     mrProfiles = [],
     isRunning,
     onUpdate,
@@ -101,8 +106,35 @@
       localProgressiveDurationHours = progressiveDurationHours;
       localPeerIdPattern = peerIdPattern;
       localKeyPattern = keyPattern;
+      localScheduleSlowEnabled = scheduleSlowEnabled;
+      localSlowStartLocal = utcToLocal(scheduleSlowStartUtc);
+      localSlowEndLocal = utcToLocal(scheduleSlowEndUtc);
+      localScheduleSlowScale = Math.round((scheduleSlowScale ?? 0.3) * 100);
     }
   });
+
+  // 作息降速:UI 用本地小时显示,存储为 UTC 小时(换算随浏览器时区)
+  const tzOffsetHours = -new Date().getTimezoneOffset() / 60;
+  let localScheduleSlowEnabled = $state(false);
+  let localSlowStartLocal = $state(23);
+  let localSlowEndLocal = $state(8);
+  let localScheduleSlowScale = $state(30);
+
+  function localToUtc(hour) {
+    return ((Math.round(hour) - tzOffsetHours) % 24 + 24) % 24;
+  }
+  function utcToLocal(hour) {
+    return ((Math.round(hour) + tzOffsetHours) % 24 + 24) % 24;
+  }
+  function pushScheduleSlow() {
+    if (isEditing) return;
+    updateValues({
+      scheduleSlowEnabled: localScheduleSlowEnabled,
+      scheduleSlowStartUtc: Math.round(localToUtc(localSlowStartLocal)),
+      scheduleSlowEndUtc: Math.round(localToUtc(localSlowEndLocal)),
+      scheduleSlowScale: localScheduleSlowScale / 100,
+    });
+  }
 
   // 代理结构化字段:仅在实例的 proxyUrl 真正变化时回填(切换实例/应用/取消)。
   // 不放进上面的通用同步 effect,避免失焦等任何同步把正在输入的代理清空
@@ -335,6 +367,72 @@
     }
   }
 
+  // ===== 按站点绑定代理(防封:tracker 汇报 IP 与网站登录 IP 保持一致)=====
+  const SITE_PROXY_KEY = 'rustatio-site-proxies';
+  let showSiteBindings = $state(false);
+  let siteBindings = $state([]); // [{ host, proxy }]
+
+  function loadSiteBindings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SITE_PROXY_KEY) || '{}');
+      const hosts = new Set();
+      for (const inst of get(instancesStore)) {
+        const host = extractTrackerHost(inst?.torrent?.announce || '');
+        if (host) hosts.add(host);
+      }
+      const savedHosts = Object.keys(saved);
+      siteBindings = [...hosts, ...savedHosts.filter(h => !hosts.has(h))].map(h => ({
+        host: h,
+        proxy: saved[h] || '',
+      }));
+    } catch (e) {
+      console.error('加载站点绑定失败:', e);
+      siteBindings = [];
+    }
+  }
+
+  function toggleSiteBindings() {
+    showSiteBindings = !showSiteBindings;
+    if (showSiteBindings) loadSiteBindings();
+  }
+
+  async function handleSiteBindingChange(binding, proxy) {
+    binding.proxy = proxy;
+    try {
+      const saved = JSON.parse(localStorage.getItem(SITE_PROXY_KEY) || '{}');
+      if (proxy) saved[binding.host] = proxy;
+      else delete saved[binding.host];
+      localStorage.setItem(SITE_PROXY_KEY, JSON.stringify(saved));
+    } catch { /* ignore */ }
+    const { api } = await import('$lib/api.js');
+    let changed = 0;
+    for (const inst of get(instancesStore)) {
+      const host = extractTrackerHost(inst?.torrent?.announce || '');
+      if (host !== binding.host || inst.isRunning) continue;
+      instancesStore.update(list => list.map(i => (i.id === inst.id ? { ...i, proxyUrl: proxy } : i)));
+      if (onUpdate) {
+        // 空更新触发父级 updateInstance + syncConfigToServer,把新 proxyUrl 持久化到后端
+        onUpdate({});
+      }
+      changed += 1;
+    }
+    proxyTestResult = {
+      ok: true,
+      msg: proxy
+        ? `站点 ${binding.host} 已绑定代理 ${proxy}(${changed} 个实例生效)`
+        : `站点 ${binding.host} 已改为直连(${changed} 个实例生效)`,
+    };
+    api.frontendLog('info', `站点代理绑定:${binding.host} -> ${proxy || '直连'},生效 ${changed} 个实例`);
+  }
+
+  // 已保存过的代理地址集合(供站点绑定下拉选择)
+  let knownProxies = $derived.by(() => {
+    const set = new Set();
+    for (const b of siteBindings) if (b.proxy) set.add(b.proxy);
+    if (localProxyUrl) set.add(localProxyUrl);
+    return [...set];
+  });
+
   // 当前实例是否正在使用代理(proxyUrl 即实例当前生效值)
   let instanceProxyInUse = $derived(Boolean(proxyUrl && String(proxyUrl).trim()));
 
@@ -440,6 +538,11 @@
       updateValues({
         peerIdPattern: profile.peerIdPattern || '',
         keyPattern: profile.keyPattern || '',
+        // mRatio announce 参数顺序模板与报告口径(档案里的 Announce/ReportUploadAs 等字段)
+        announceQueryTemplate: profile.announceQueryTemplate || null,
+        reportUploadAs: profile.reportUploadAs ?? 0,
+        reportDownloadAs: profile.reportDownloadAs ?? 0,
+        reportLeftAs: profile.reportLeftAs ?? 0,
       });
     }
     event.target.value = '';
@@ -691,7 +794,42 @@
             <Ban size={12} />
             当前实例未使用代理(直连)
           {/if}
+          <button
+            type="button"
+            class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline cursor-pointer bg-transparent border-0"
+            onclick={toggleSiteBindings}
+            title="为每个站点(tracker 域名)固定代理,让 tracker 汇报 IP 与网站登录 IP 一致"
+          >
+            按站点绑定代理 {showSiteBindings ? '▲' : '▼'}
+          </button>
         </div>
+        {#if showSiteBindings}
+          <div class="mt-2 rounded-lg border border-border bg-muted/40 p-2 space-y-1.5">
+            <p class="text-[10px] text-muted-foreground px-1">
+              防封关键:同一站点,网页登录用的 IP 要和 tracker 汇报用的 IP 一致。给每个站点固定代理后,该站全部实例自动应用(运行中的实例需停止后重开生效)。
+            </p>
+            {#each siteBindings as binding (binding.host)}
+              <div class="flex items-center gap-2 px-1">
+                <span class="text-xs font-medium text-foreground w-44 truncate flex-shrink-0" title={binding.host}>
+                  {binding.host}
+                </span>
+                <select
+                  class="h-7 flex-1 rounded-md border border-border bg-card px-1.5 text-xs"
+                  value={binding.proxy}
+                  onchange={e => handleSiteBindingChange(binding, e.target.value)}
+                >
+                  <option value="">直连(不使用代理)</option>
+                  {#each knownProxies as px (px)}
+                    <option value={px}>{px}</option>
+                  {/each}
+                </select>
+              </div>
+            {/each}
+            {#if siteBindings.length === 0}
+              <p class="text-[11px] text-muted-foreground px-1">暂无站点(选择种子后自动列出 tracker 域名)</p>
+            {/if}
+          </div>
+        {/if}
         {#if localProxyUrl}
           <p class="mt-1 truncate font-mono text-[10px] text-muted-foreground">
             {localProxyUrl}
@@ -877,6 +1015,72 @@
             <span class="text-sm text-muted-foreground">秒</span>
           </div>
         </div>
+      </div>
+
+      <!-- 作息降速(防封) -->
+      <div class="border-t border-border pt-3">
+        <label class="flex items-center gap-2 cursor-pointer mb-2">
+          <input
+            type="checkbox"
+            bind:checked={localScheduleSlowEnabled}
+            disabled={isRunning}
+            class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50"
+            onchange={pushScheduleSlow}
+          />
+          <span class="text-xs font-medium">作息降速(模拟真人夜间挂机,防封)</span>
+        </label>
+        {#if localScheduleSlowEnabled}
+          <div class="grid grid-cols-[auto_1fr_1fr_1fr] items-end gap-2">
+            <div>
+              <Label class="text-xs text-muted-foreground mb-1.5 block">开始(本地)</Label>
+              <Input
+                type="number"
+                bind:value={localSlowStartLocal}
+                disabled={isRunning}
+                min="0"
+                max="23"
+                class="h-9 text-center"
+                onfocus={handleFocus}
+                onblur={handleBlur}
+                onchange={pushScheduleSlow}
+              />
+            </div>
+            <div>
+              <Label class="text-xs text-muted-foreground mb-1.5 block">结束(本地)</Label>
+              <Input
+                type="number"
+                bind:value={localSlowEndLocal}
+                disabled={isRunning}
+                min="0"
+                max="23"
+                class="h-9 text-center"
+                onfocus={handleFocus}
+                onblur={handleBlur}
+                onchange={pushScheduleSlow}
+              />
+            </div>
+            <div>
+              <Label class="text-xs text-muted-foreground mb-1.5 block">时段速率</Label>
+              <div class="flex items-center gap-1">
+                <Input
+                  type="number"
+                  bind:value={localScheduleSlowScale}
+                  disabled={isRunning}
+                  min="0"
+                  max="100"
+                  class="flex-1 h-9 text-center"
+                  onfocus={handleFocus}
+                  onblur={handleBlur}
+                  onchange={pushScheduleSlow}
+                />
+                <span class="text-xs text-muted-foreground">%</span>
+              </div>
+            </div>
+          </div>
+          <p class="mt-1.5 text-[10px] text-muted-foreground">
+            时段内上传/下载速率降到设定比例(默认 23:00 - 08:00 降到 30%),支持跨午夜;随软件时区自动换算。
+          </p>
+        {/if}
       </div>
     </div>
   </div>

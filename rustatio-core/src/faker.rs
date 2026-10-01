@@ -205,6 +205,40 @@ pub struct FakerConfig {
     /// tracker 请求代理(mRatio 逐种子代理移植):支持 http(s):// 与 socks5://
     #[serde(default)]
     pub proxy_url: Option<String>,
+
+    // ===== 作息降速(防封:真人深夜会关小/暂停)=====
+    /// 启用后,在 [start_hour_utc, end_hour_utc) 时段内速率乘以 scale(UTC 时段,由前端按本地时区换算)
+    #[serde(default)]
+    pub schedule_slow_enabled: bool,
+
+    /// 降速时段开始(UTC 小时 0-23)
+    #[serde(default)]
+    pub schedule_slow_start_utc: u8,
+
+    /// 降速时段结束(UTC 小时 0-23,支持跨午夜)
+    #[serde(default)]
+    pub schedule_slow_end_utc: u8,
+
+    /// 时段内速率倍率 0.0-1.0(默认 0.3)
+    #[serde(default = "default_schedule_slow_scale")]
+    pub schedule_slow_scale: f64,
+
+    // ===== mRatio Announce 模板(参数顺序指纹)=====
+    /// announce 查询参数模板(mRatio 档案 Announce 字段);None 用内置参数序
+    #[serde(default)]
+    pub announce_query_template: Option<String>,
+
+    /// 报告口径:0=字节,1=按 piece 取整,2=按 16KB 取整
+    #[serde(default)]
+    pub report_upload_as: i8,
+    #[serde(default)]
+    pub report_download_as: i8,
+    #[serde(default)]
+    pub report_left_as: i8,
+}
+
+fn default_schedule_slow_scale() -> f64 {
+    0.3
 }
 
 /// UI-friendly preset settings format (matches frontend)
@@ -287,6 +321,14 @@ impl From<PresetSettings> for FakerConfig {
             stop_at_seed_time,
             idle_when_no_leechers: p.idle_when_no_leechers.unwrap_or(false),
             idle_when_no_seeders: p.idle_when_no_seeders.unwrap_or(false),
+            schedule_slow_enabled: false,
+            schedule_slow_start_utc: 15,
+            schedule_slow_end_utc: 0,
+            schedule_slow_scale: 0.3,
+            announce_query_template: None,
+            report_upload_as: 0,
+            report_download_as: 0,
+            report_left_as: 0,
             scrape_interval: 60,
             post_stop_action: match p.post_stop_action.as_deref() {
                 Some("stop_seeding") => PostStopAction::StopSeeding,
@@ -348,6 +390,14 @@ impl Default for FakerConfig {
             stop_at_seed_time: None,
             idle_when_no_leechers: false,
             idle_when_no_seeders: false,
+            schedule_slow_enabled: false,
+            schedule_slow_start_utc: 15,
+            schedule_slow_end_utc: 0,
+            schedule_slow_scale: 0.3,
+            announce_query_template: None,
+            report_upload_as: 0,
+            report_download_as: 0,
+            report_left_as: 0,
             scrape_interval: 60,
             progressive_rates: false,
             target_upload_rate: None,
@@ -461,6 +511,9 @@ pub struct RatioFaker {
     // Runtime state
     stats: FakerStats,
 
+    /// 全局限速比例(桌面端按总上限分配,0-1]
+    rate_scale: f64,
+
     // Session data
     peer_id: String,
     key: String,
@@ -543,6 +596,12 @@ impl RatioFaker {
 
     fn tracker_error_is_retryable(message: &str) -> bool {
         message == "Tracker unavailable"
+    }
+
+    /// 真实客户端不会精确按 tracker 返回的 interval 打点,加 ±5% 随机偏移更自然
+    fn jittered_announce_interval(interval: Duration) -> Duration {
+        let factor = rand::Rng::random_range(&mut rand::rng(), 0.95..1.05);
+        Duration::from_secs_f64((interval.as_secs_f64() * factor).max(1.0))
     }
 
     fn tracker_retry_delay_secs(attempt: u32) -> u64 {
@@ -791,6 +850,7 @@ impl RatioFaker {
             config,
             tracker_client: Arc::new(tracker_client),
             stats,
+            rate_scale: 1.0,
             peer_id,
             key,
             tracker_id: None,
@@ -914,7 +974,8 @@ impl RatioFaker {
                 self.stats.seeders = response.complete;
                 self.stats.leechers = response.incomplete;
                 self.stats.last_announce = Some(Instant::now());
-                self.stats.next_announce = Some(Instant::now() + self.announce_interval);
+                self.stats.next_announce =
+                    Some(Instant::now() + Self::jittered_announce_interval(self.announce_interval));
                 self.stats.announce_count += 1;
 
                 log_info!(
@@ -1090,6 +1151,18 @@ impl RatioFaker {
 
         self.stats.is_idling = is_idling;
         self.stats.idling_reason = idling_reason;
+
+        // 作息降速:模拟真人深夜低速(按 UTC 时段,前端已做本地→UTC 换算)
+        let (upload_rate, download_rate) = Self::apply_schedule_slow(
+            &self.config,
+            upload_rate,
+            download_rate,
+            Self::current_utc_hour(),
+        );
+
+        // 全局速率上限:按桌面端分配的比例缩放
+        let (upload_rate, download_rate) =
+            (upload_rate * self.rate_scale, download_rate * self.rate_scale);
 
         let completed = Self::apply_rate_and_transfer_updates(
             &mut self.stats,
@@ -1305,7 +1378,8 @@ impl RatioFaker {
                 self.stats.seeders = response.complete;
                 self.stats.leechers = response.incomplete;
                 self.stats.last_announce = Some(Instant::now());
-                self.stats.next_announce = Some(Instant::now() + self.announce_interval);
+                self.stats.next_announce =
+                    Some(Instant::now() + Self::jittered_announce_interval(self.announce_interval));
                 self.stats.announce_count += 1;
 
                 log_info!(
@@ -1533,6 +1607,11 @@ impl RatioFaker {
             numwant: Some(self.config.num_want),
             key: Some(self.key.clone()),
             tracker_id: self.tracker_id.clone(),
+            get_template: self.config.announce_query_template.clone(),
+            report_upload_as: self.config.report_upload_as,
+            report_download_as: self.config.report_download_as,
+            report_left_as: self.config.report_left_as,
+            piece_len: self.torrent.piece_length,
         }
     }
 
@@ -1560,6 +1639,16 @@ impl RatioFaker {
         Ok(())
     }
 
+    /// 桌面端全局限速:设置速率缩放比例(0-1],1.0 = 不缩放
+    pub fn set_rate_scale(&mut self, scale: f64) {
+        self.rate_scale = scale.clamp(0.0, 1.0);
+    }
+
+    /// 当前配置的上传速率目标(KB/s,用于全局上限分配计算)
+    pub fn upload_rate_target(&self) -> f64 {
+        self.config.upload_rate
+    }
+
     /// Resume the faker
     pub fn resume(&mut self) -> Result<()> {
         log_info!("Resuming ratio faker");
@@ -1570,6 +1659,33 @@ impl RatioFaker {
             self.stats.next_announce = Some(now);
         }
         Ok(())
+    }
+
+    /// 当前 UTC 小时(0-23),native/wasm 双端无时区依赖
+    fn current_utc_hour() -> u32 {
+        ((Self::current_timestamp_millis() / 3_600_000) % 24) as u32
+    }
+
+    /// 作息降速:hour 落在 [start,end) 时段(支持跨午夜)时速率乘 scale
+    fn apply_schedule_slow(config: &FakerConfig, upload: f64, download: f64, hour: u32) -> (f64, f64) {
+        if !config.schedule_slow_enabled {
+            return (upload, download);
+        }
+        let start = (config.schedule_slow_start_utc % 24) as u32;
+        let end = (config.schedule_slow_end_utc % 24) as u32;
+        let in_window = if start == end {
+            false
+        } else if start < end {
+            hour >= start && hour < end
+        } else {
+            hour >= start || hour < end
+        };
+        if in_window {
+            let scale = config.schedule_slow_scale.clamp(0.0, 1.0);
+            (upload * scale, download * scale)
+        } else {
+            (upload, download)
+        }
     }
 
     /// Apply randomization to a rate if enabled
@@ -1835,6 +1951,16 @@ impl RatioFakerHandle {
 
     pub fn stats_snapshot(&self) -> FakerStats {
         self.stats_rx.borrow().clone()
+    }
+
+    /// 全局限速:设置速率缩放比例
+    pub async fn set_rate_scale(&self, scale: f64) {
+        self.inner.lock().await.set_rate_scale(scale);
+    }
+
+    /// 配置的上传速率目标(KB/s)
+    pub async fn upload_rate_target(&self) -> f64 {
+        self.inner.lock().await.upload_rate_target()
     }
 
     pub async fn start(&self) -> Result<()> {

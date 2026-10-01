@@ -126,6 +126,14 @@ export function serializeSessionInstances(instances) {
     peer_id_pattern: inst.peerIdPattern?.trim() || null,
     key_pattern: inst.keyPattern?.trim() || null,
     proxy_url: inst.proxyUrl?.trim() || null,
+    schedule_slow_enabled: inst.scheduleSlowEnabled ?? false,
+    schedule_slow_start_utc: inst.scheduleSlowStartUtc ?? 15,
+    schedule_slow_end_utc: inst.scheduleSlowEndUtc ?? 0,
+    schedule_slow_scale: inst.scheduleSlowScale ?? 0.3,
+    announce_query_template: inst.announceQueryTemplate?.trim() || null,
+    report_upload_as: inst.reportUploadAs ?? 0,
+    report_download_as: inst.reportDownloadAs ?? 0,
+    report_left_as: inst.reportLeftAs ?? 0,
     torrent_metadata: inst.torrentMetadata || null,
   }));
 }

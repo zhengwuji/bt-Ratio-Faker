@@ -127,6 +127,16 @@ function createDefaultInstance(id, defaults = {}) {
     // 历史导入的存档元数据(用于无路径实例的重接)
     torrentMetadata: defaults.torrentMetadata ?? null,
 
+    // 作息降速(防封):存 UTC 小时,UI 按本地时区换算显示
+    scheduleSlowEnabled: defaults.scheduleSlowEnabled !== undefined ? defaults.scheduleSlowEnabled : false,
+    scheduleSlowStartUtc: defaults.scheduleSlowStartUtc !== undefined ? defaults.scheduleSlowStartUtc : 15,
+    scheduleSlowEndUtc: defaults.scheduleSlowEndUtc !== undefined ? defaults.scheduleSlowEndUtc : 0,
+    scheduleSlowScale: defaults.scheduleSlowScale !== undefined ? defaults.scheduleSlowScale : 0.3,
+    announceQueryTemplate: defaults.announceQueryTemplate ?? null,
+    reportUploadAs: defaults.reportUploadAs ?? 0,
+    reportDownloadAs: defaults.reportDownloadAs ?? 0,
+    reportLeftAs: defaults.reportLeftAs ?? 0,
+
     // Status
     statusMessage: '请选择种子文件以开始',
     statusType: 'warning',
@@ -156,6 +166,21 @@ async function buildNewInstanceDefaults(defaults = {}) {
     ...defaults,
     vpnPortSync,
   };
+}
+
+// 各客户端真实常用端口:qB/uT/BT 默认随机高位,Transmission/Deluge 固定 51413
+// (伪装一致性与防端口黑名单:新实例按客户端匹配默认端口)
+export function getDefaultPortForClient(clientId) {
+  switch (clientId) {
+    case 'transmission':
+    case 'deluge':
+      return 51413;
+    case 'rtorrent':
+      return 6890;
+    default:
+      // qBittorrent/uTorrent/BitTorrent 真实行为是随机高位端口
+      return 49152 + Math.floor(Math.random() * (65535 - 49152 + 1));
+  }
 }
 
 // Global lock to prevent concurrent config saves from different sources
@@ -560,7 +585,10 @@ export const instanceActions = {
 
         const effectiveDefaults = await buildNewInstanceDefaults();
 
-        const newInstance = createDefaultInstance(instanceId, effectiveDefaults);
+        if (effectiveDefaults.port === undefined) {
+        effectiveDefaults.port = getDefaultPortForClient(effectiveDefaults.selectedClient || 'qbittorrent');
+      }
+      const newInstance = createDefaultInstance(instanceId, effectiveDefaults);
         instances.set([newInstance]);
         activeInstanceId.set(instanceId);
         updateActiveInstanceStore();
@@ -579,6 +607,9 @@ export const instanceActions = {
 
       const effectiveDefaults = await buildNewInstanceDefaults(defaults);
 
+      if (effectiveDefaults.port === undefined) {
+        effectiveDefaults.port = getDefaultPortForClient(effectiveDefaults.selectedClient || 'qbittorrent');
+      }
       const newInstance = createDefaultInstance(instanceId, effectiveDefaults);
 
       instances.update(insts => [...insts, newInstance]);

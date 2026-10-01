@@ -122,6 +122,11 @@ pub struct FakerSettings {
     #[serde(default = "default_announce_interval")]
     pub default_announce_interval: u64,
 
+    /// 全局上传总上限 KB/s(0 = 不限):所有运行实例的目标速率之和超过它时按比例下调,
+    /// 防止 tracker 看到物理上不可能的全局速率(防封)
+    #[serde(default)]
+    pub global_max_upload: f64,
+
     /// Auto-update stats interval in seconds
     #[serde(default = "default_update_interval")]
     pub update_interval: u64,
@@ -212,6 +217,7 @@ impl Default for FakerSettings {
             default_upload_rate: default_upload_rate(),
             default_download_rate: default_download_rate(),
             default_announce_interval: default_announce_interval(),
+            global_max_upload: 0.0,
             update_interval: default_update_interval(),
         }
     }
