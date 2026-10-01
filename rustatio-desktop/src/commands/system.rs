@@ -91,6 +91,8 @@ pub struct DesktopNetworkStatus {
 pub struct GeoResult {
     pub ip: String,
     pub country: String,
+    // 前端按 countryCode 读取,缺 rename 会导致国旗恒为白旗
+    #[serde(rename = "countryCode")]
     pub country_code: String,
 }
 
