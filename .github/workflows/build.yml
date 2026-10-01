@@ -67,3 +67,5 @@ jobs:
           path: target/release/rustatio-desktop.exe
           retention-days: 30
           if-no-files-found: error
+
+# 首次推送验证:此提交用于确认 push 自动编译正常触发
