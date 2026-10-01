@@ -66,6 +66,8 @@ jobs:
         id: notes
         shell: bash
         run: |
+          # checkout 浅克隆可能把 tag 引用落在 commit 上(轻量化),强制重取注释 tag 对象
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" || true
           BODY=$(git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}")
           if [ -z "$BODY" ]; then
             BODY=$(git tag -l --format='%(contents:subject)' "${GITHUB_REF_NAME}")
