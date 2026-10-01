@@ -179,6 +179,21 @@
       encrypted: probe ? !!probe.encrypted : false,
     };
   }
+
+  // 探测统计(排除本机行)
+  let probeSummary = $derived.by(() => {
+    let identified = 0;
+    let unresponsive = 0;
+    let pending = 0;
+    for (const p of uniquePeers) {
+      if (isSelf(p)) continue;
+      const cell = clientCell(p);
+      if (cell.name) identified++;
+      else if (cell.online === false) unresponsive++;
+      else pending++;
+    }
+    return { identified, unresponsive, pending };
+  });
 </script>
 
 {#if isOpen}
@@ -217,6 +232,11 @@
         tracker 的 compact 响应只含 IP/端口。点「探测客户端」会对每个 peer 直连标准 BT
         握手(明文 + 加密双模式)识别其真实客户端 —— 这是所有下载器拿到 peer 列表后的正常行为,
         tracker 不感知,不产生账号风险。实例配置了代理时自动经代理连接(与汇报同一出口)。
+        {#if probeSummary.identified > 0 || probeSummary.unresponsive > 0}
+          <span class="font-medium text-foreground">
+            已识别 {probeSummary.identified} 个,未响应 {probeSummary.unresponsive} 个
+          </span>
+        {/if}
       </p>
       <button
         class="flex flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
@@ -300,10 +320,11 @@
         <p class="mt-2 text-[10px] text-muted-foreground italic">
           共 {uniquePeers.length} 个 peer(重复行已合并)。IP 为对方与 tracker 通信的地址,可能与对方真实出口不同
           (NAT/代理)。<br />
-          客户端识别来自直连握手获取的对方 peer_id(明文 + MSE 加密双模式,自动尝试):
-          绿点 = 握手成功(对方端口真实可达、真实在线);灰点 = 未响应(对方离线/NAT
-          后/强制屏蔽连接,不代表不在线做种)。探测使用本实例的 info_hash
-          与伪装 peer_id(与 tracker 汇报指纹一致),握手后立即断开、不交换任何数据;tracker
+          「未响应」的对方多半<b>没有开放端口</b>(在 NAT/路由器后或防火墙拦截)—— BT
+          协议里任何客户端都无法主动连入这类 peer,qBittorrent 等真实客户端做种时同样连不上他们,
+          这不代表对方不在线做种,也无法通过软件绕过;其余未响应为对方已离线或屏蔽了连接。
+          探测为明文 + MSE 加密双模式(自动尝试),使用本实例的 info_hash 与伪装
+          peer_id(与 tracker 汇报指纹一致),握手后立即断开、不交换任何数据;tracker
           完全感知不到 peer 直连,不会带来任何账号风险。
         </p>
       {/if}
