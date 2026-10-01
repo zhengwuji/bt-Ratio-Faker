@@ -1,0 +1,29 @@
+{
+  "id": "balanced",
+  "name": "均衡做种",
+  "description": "涨分享率速度与安全性的平衡之选",
+  "icon": "scale",
+  "recommended": true,
+  "settings": {
+    "uploadRate": 500,
+    "downloadRate": 0,
+    "randomizeRates": true,
+    "randomRangePercent": 20,
+    "progressiveRatesEnabled": false,
+    "updateIntervalSeconds": 5,
+    "completionPercent": 100,
+    "selectedClient": "qbittorrent",
+    "stopAtRatioEnabled": true,
+    "stopAtRatio": 2.0,
+    "stopAtUploadedEnabled": false,
+    "stopAtDownloadedEnabled": false,
+    "stopAtSeedTimeEnabled": false,
+    "idleWhenNoLeechers": false
+  },
+  "tips": [
+    "500 KB/s 上传对现代宽带来说是真实可信的",
+    "做种完整种子时不下载是正常的",
+    "20% 随机化带来自然的速度波动",
+    "达到 2.0 分享率停止——对多数 tracker 都安全"
+  ]
+}

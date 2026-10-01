@@ -1,0 +1,33 @@
+{
+  "id": "stealth",
+  "name": "隐身做种",
+  "description": "慢而稳地涨分享率——安全性最高",
+  "icon": "eye-off",
+  "recommended": false,
+  "settings": {
+    "uploadRate": 100,
+    "downloadRate": 0,
+    "randomizeRates": true,
+    "randomRangePercent": 25,
+    "progressiveRatesEnabled": true,
+    "targetUploadRate": 300,
+    "targetDownloadRate": 0,
+    "progressiveDurationHours": 4,
+    "updateIntervalSeconds": 10,
+    "completionPercent": 100,
+    "selectedClient": "qbittorrent",
+    "stopAtRatioEnabled": true,
+    "stopAtRatio": 1.5,
+    "stopAtUploadedEnabled": false,
+    "stopAtDownloadedEnabled": false,
+    "stopAtSeedTimeEnabled": true,
+    "stopAtSeedTimeHours": 48,
+    "idleWhenNoLeechers": true
+  },
+  "tips": [
+    "从 100 渐进到 300 KB/s,看起来很自然",
+    "高随机化(25%)模拟真实网络波动",
+    "保守的分享率上限(1.5)不易引起怀疑",
+    "无下载者或满 48 小时后停止——贴近真实行为"
+  ]
+}

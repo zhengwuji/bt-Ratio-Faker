@@ -1,0 +1,29 @@
+{
+  "id": "seedbox",
+  "name": "盒子模式",
+  "description": "模拟专用盒子(Seedbox)——超高速度",
+  "icon": "server",
+  "recommended": false,
+  "settings": {
+    "uploadRate": 5000,
+    "downloadRate": 0,
+    "randomizeRates": true,
+    "randomRangePercent": 10,
+    "progressiveRatesEnabled": false,
+    "updateIntervalSeconds": 5,
+    "completionPercent": 100,
+    "port": 51413,
+    "selectedClient": "transmission",
+    "stopAtRatioEnabled": false,
+    "stopAtUploadedEnabled": false,
+    "stopAtDownloadedEnabled": false,
+    "stopAtSeedTimeEnabled": false,
+    "idleWhenNoLeechers": true
+  },
+  "tips": [
+    "5 MB/s 上传是入门盒子的典型速度",
+    "低随机化——盒子线路速度稳定",
+    "无下载者时空闲——盒子会一直做种到没人要",
+    "仅当账号历史有过盒子使用记录时才建议使用"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "partial",
+  "name": "部分下载",
+  "description": "模拟边下载边上传",
+  "icon": "download",
+  "recommended": false,
+  "settings": {
+    "uploadRate": 300,
+    "downloadRate": 100,
+    "randomizeRates": true,
+    "randomRangePercent": 20,
+    "progressiveRatesEnabled": false,
+    "updateIntervalSeconds": 5,
+    "completionPercent": 85,
+    "selectedClient": "deluge",
+    "stopAtRatioEnabled": false,
+    "stopAtUploadedEnabled": false,
+    "stopAtDownloadedEnabled": true,
+    "stopAtDownloadedGB": 5,
+    "stopAtSeedTimeEnabled": false,
+    "idleWhenNoLeechers": false
+  },
+  "tips": [
+    "上传约为下载 3 倍,\"下载\"的同时也在涨分享率",
+    "完成度设为 85%,模拟未下载完",
+    "下载 5 GB 后停止——模拟下载完成",
+    "上传应始终高于下载才能涨分享率"
+  ]
+}

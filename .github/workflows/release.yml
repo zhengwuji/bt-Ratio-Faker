@@ -1,0 +1,82 @@
+name: 发布 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: 编译并发布
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: 缓存 Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+
+      - name: 安装 wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - name: 构建 WASM 模块
+        working-directory: rustatio-wasm
+        shell: pwsh
+        run: wasm-pack build --target web --out-dir ../ui/src/lib/wasm --release
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: 构建前端
+        working-directory: ui
+        shell: pwsh
+        run: |
+          npm ci
+          npx vite build
+
+      - name: 编译桌面程序
+        shell: pwsh
+        run: cargo build --release -p rustatio
+
+      - name: 重命名产物
+        shell: pwsh
+        run: |
+          Copy-Item target/release/rustatio-desktop.exe "Rustatio-${{ github.ref_name }}-win64.exe"
+
+      - name: 读取 tag 中文更新说明
+        id: notes
+        shell: bash
+        run: |
+          BODY=$(git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}")
+          if [ -z "$BODY" ]; then
+            BODY=$(git tag -l --format='%(contents:subject)' "${GITHUB_REF_NAME}")
+          fi
+          { printf '# 更新内容\n\n'; printf '%s\n' "$BODY"; } > release-notes.md
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Rustatio ${{ github.ref_name }} 中文合并版
+          body_path: release-notes.md
+          files: Rustatio-${{ github.ref_name }}-win64.exe
+          draft: false
+          prerelease: false
