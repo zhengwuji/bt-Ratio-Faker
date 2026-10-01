@@ -72,7 +72,8 @@ jobs:
           BODY=""
           if [ -n "$TAG_SHA" ]; then
             TAG_JSON=$(curl -sf "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/tags/${TAG_SHA}" || true)
-            BODY=$(printf '%s' "$TAG_JSON" | jq -r 'select(.type == "tag") | ((.message // "") | split("\n\n") | .[1:] | join("\n\n"))' 2>/dev/null | sed '/./,$!d' || true)
+            # /git/tags/{commit_sha} 会 404(轻量 tag),无需按 type 过滤;去掉首段主题行只留正文
+            BODY=$(printf '%s' "$TAG_JSON" | jq -r '(.message // "") | split("\n\n") | .[1:] | join("\n\n")' 2>/dev/null | sed '/./,$!d' || true)
           fi
           # 兜底:本地 tag 对象
           if [ -z "$BODY" ]; then
