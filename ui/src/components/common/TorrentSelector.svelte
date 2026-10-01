@@ -17,14 +17,41 @@
   } from '@lucide/svelte';
   import { getTrackerSiteUrl } from '$lib/trackerUtils.js';
 
+  import { RefreshCw } from '@lucide/svelte';
+
   let {
     torrent,
     selectTorrent,
     formatBytes,
     completionPercent = 100,
     isRunning = false,
+    instanceId = null,
     onUpdate = () => {},
   } = $props();
+
+  // 种子状态查询:向 tracker 发送 scrape,获取真实做种/下载人数,并检测种子是否已被网站删除
+  let statusQuery = $state(null); // { loading, ok, seeders, leechers, downloaded, error }
+  async function queryTorrentStatus() {
+    if (!instanceId || statusQuery?.loading) return;
+    statusQuery = { loading: true };
+    try {
+      const { api } = await import('$lib/api.js');
+      const [seeders, leechers, downloaded] = await api.scrapeTracker(instanceId);
+      statusQuery = {
+        loading: false,
+        ok: true,
+        seeders,
+        leechers,
+        downloaded,
+      };
+    } catch (e) {
+      statusQuery = {
+        loading: false,
+        ok: false,
+        error: String(e),
+      };
+    }
+  }
 
   let showDetails = $state(false);
   let isDragging = $state(false);
@@ -330,6 +357,42 @@
           <span class="text-[10px] text-orange-500">停止实例后可切换</span>
         {/if}
       </div>
+      {#if instanceId}
+        <div class="mt-2">
+          <button
+            class="w-full h-8 rounded-md border border-border bg-transparent px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+            disabled={statusQuery?.loading}
+            onclick={queryTorrentStatus}
+            title="向 tracker 查询该种子的真实做种/下载人数;若种子已被网站删除会提示"
+          >
+            <RefreshCw size={13} class={statusQuery?.loading ? 'animate-spin' : ''} />
+            {statusQuery?.loading ? '查询中...' : '查询种子状态(真实做种数/是否被删)'}
+          </button>
+          {#if statusQuery && !statusQuery.loading}
+            {#if statusQuery.ok}
+              <div
+                class="mt-1.5 rounded-lg border px-3 py-2 text-xs {statusQuery.seeders === 0
+                  ? 'border-orange-500/40 bg-orange-500/10 text-orange-500'
+                  : 'border-stat-upload/30 bg-stat-upload/10 text-stat-upload'}"
+              >
+                {#if statusQuery.seeders === 0 && statusQuery.leechers === 0}
+                  ⚠ Tracker 报告该种子当前 0 做种 / 0 下载 —— 可能已被网站删除或无人做种,建议到种子所属网站核实
+                {:else}
+                  ✓ 查询成功:真实做种 {statusQuery.seeders} 人 · 下载中 {statusQuery.leechers} 人 ·
+                  已完成下载 {statusQuery.downloaded} 人
+                {/if}
+              </div>
+            {:else}
+              <div
+                class="mt-1.5 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive px-3 py-2 text-xs"
+              >
+                ✕ 查询失败:{statusQuery.error}
+                <span class="text-[10px]">(常见原因:种子已被网站删除、passkey 失效或网络不通)</span>
+              </div>
+            {/if}
+          {/if}
+        </div>
+      {/if}
       <div class="grid grid-cols-2 gap-2">
         <button
           class="p-2.5 rounded-lg border-2 flex flex-col items-center gap-1 transition-all cursor-pointer {isSeeding

@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { ChevronDown, Check } from '@lucide/svelte';
+  import { ChevronDown, Check, AlertTriangle } from '@lucide/svelte';
   import { FolderOpen } from '@lucide/svelte';
   import {
     initWasm,
@@ -1653,6 +1653,16 @@
         {manualUpdate}
       />
 
+      {#if $viewMode === 'standard' && $activeInstance?.stats?.tracker_error === 'Torrent not found on tracker'}
+        <div
+          class="mx-auto mb-2 flex max-w-7xl items-center gap-2 rounded-xl border-2 border-destructive/50 bg-destructive/10 px-4 py-2.5 text-sm font-semibold text-destructive"
+          role="alert"
+        >
+          <AlertTriangle size={16} class="flex-shrink-0" />
+          该种子已被网站删除(Tracker 上已不存在)—— 不用继续做这种子了,建议停止并删除该实例
+        </div>
+      {/if}
+
       <!-- Scrollable Content Area -->
       {#if $viewMode === 'grid'}
         <div class="flex-1 overflow-y-auto p-3">
@@ -1694,6 +1704,7 @@
                 torrent={$activeInstance?.torrent}
                 {selectTorrent}
                 {formatBytes}
+                instanceId={$activeInstance?.id ?? null}
                 completionPercent={$activeInstance?.completionPercent ?? 100}
                 isRunning={($activeInstance?.isRunning) || false}
                 onUpdate={updates => {

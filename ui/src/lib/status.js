@@ -58,7 +58,7 @@ export function formatRetrySeconds(retryAtMs, nowMs = Date.now()) {
 // 后端哨兵错误串保持英文(用于重试判定),仅在展示层映射为中文
 const TRACKER_MESSAGE_I18N = {
   'Tracker unavailable': 'Tracker 不可用',
-  'Torrent not found on tracker': 'Tracker 上未找到该种子',
+  'Torrent not found on tracker': '该种子已被网站删除(Tracker 上已不存在),不用继续做种',
 };
 
 // 把 tracker 返回的英文拒绝原因翻译成可操作的中文提示
