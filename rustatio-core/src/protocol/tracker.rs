@@ -80,6 +80,15 @@ impl TrackerEvent {
     }
 }
 
+/// tracker 返回的单个 peer(compact 模式只有 ip/port;字典模式含 peer_id)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerEntry {
+    pub ip: String,
+    pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AnnounceRequest {
     pub info_hash: [u8; 20],
@@ -110,6 +119,10 @@ pub struct AnnounceRequest {
 pub struct AnnounceResponse {
     /// Interval in seconds between announces
     pub interval: i64,
+
+    /// tracker 响应里返回的 peer 列表(最多截断 200 条;compact 模式无 peer_id)
+    #[serde(default)]
+    pub peers: Vec<PeerEntry>,
 
     /// Minimum announce interval
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -386,6 +399,9 @@ impl<C: HttpClient> TrackerClient<C> {
         let complete = bencode::get_int(dict, "complete").unwrap_or(0);
         let incomplete = bencode::get_int(dict, "incomplete").unwrap_or(0);
 
+        // 解析 peers 列表:compact(6 字节/条)或字典模式(含 peer id)
+        let peers = Self::parse_peers(dict);
+
         log_debug!(
             "Parsed response: interval={}s, seeders={}, leechers={}",
             interval,
@@ -407,7 +423,44 @@ impl<C: HttpClient> TrackerClient<C> {
             _ => None,
         });
 
-        Ok(AnnounceResponse { interval, min_interval, tracker_id, complete, incomplete, warning })
+        Ok(AnnounceResponse { interval, min_interval, tracker_id, complete, incomplete, warning, peers })
+    }
+
+    /// 解析响应里的 peers 字段:compact 二进制(6 字节 = IPv4+端口)或字典列表(含 peer id)
+    fn parse_peers(
+        dict: &std::collections::HashMap<Vec<u8>, serde_bencode::value::Value>,
+    ) -> Vec<PeerEntry> {
+        let mut out = Vec::new();
+        match dict.get(b"peers".as_ref()) {
+            Some(serde_bencode::value::Value::Bytes(raw)) => {
+                for chunk in raw.chunks_exact(6) {
+                    out.push(PeerEntry {
+                        ip: format!("{}.{}.{}.{}", chunk[0], chunk[1], chunk[2], chunk[3]),
+                        port: u16::from_be_bytes([chunk[4], chunk[5]]),
+                        peer_id: None,
+                    });
+                }
+            }
+            Some(serde_bencode::value::Value::List(items)) => {
+                for item in items {
+                    if let serde_bencode::value::Value::Dict(d) = item {
+                        let ip = bencode::get_bytes(d, "ip")
+                            .map(|b| String::from_utf8_lossy(&b).to_string())
+                            .unwrap_or_default();
+                        let port = bencode::get_int(d, "port").unwrap_or(0) as u16;
+                        let peer_id = bencode::get_bytes(d, "peer id")
+                            .ok()
+                            .map(|b| String::from_utf8_lossy(&b).to_string());
+                        if !ip.is_empty() {
+                            out.push(PeerEntry { ip, port, peer_id });
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        out.truncate(200);
+        out
     }
 
     /// Parse scrape response from bencoded data

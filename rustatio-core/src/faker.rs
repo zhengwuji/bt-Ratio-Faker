@@ -451,6 +451,10 @@ pub struct FakerStats {
     // === TRACKER STATE ===
     #[serde(default)]
     pub tracker_error: Option<String>,
+
+    /// 最近一次 announce 响应里的 peer 列表(IP/端口,字典模式含 peer_id;上限 200)
+    #[serde(default)]
+    pub peers: Vec<crate::protocol::PeerEntry>,
     #[serde(default)]
     pub tracker_retry_attempt: u32,
     #[serde(default)]
@@ -840,6 +844,7 @@ impl RatioFaker {
             last_announce: None,
             next_announce: None,
             announce_count: 0,
+            peers: Vec::new(),
 
             stop_condition_met: false,
             post_stop_action: config.post_stop_action,
@@ -977,6 +982,7 @@ impl RatioFaker {
                 self.stats.next_announce =
                     Some(Instant::now() + Self::jittered_announce_interval(self.announce_interval));
                 self.stats.announce_count += 1;
+                    self.stats.peers = response.peers.clone();
 
                 log_info!(
                     "Started successfully. Seeders: {}, Leechers: {}, Interval: {}s",
@@ -1077,6 +1083,7 @@ impl RatioFaker {
             match plan.execute().await {
                 Ok(response) => {
                     self.stats.seeders = response.complete;
+                    self.stats.peers = response.peers.clone();
                     self.stats.leechers = response.incomplete;
                     self.stats.announce_count += 1;
                 }
@@ -1377,6 +1384,7 @@ impl RatioFaker {
                 self.announce_interval = Duration::from_secs(response.interval as u64);
                 self.stats.seeders = response.complete;
                 self.stats.leechers = response.incomplete;
+                self.stats.peers = response.peers.clone();
                 self.stats.last_announce = Some(Instant::now());
                 self.stats.next_announce =
                     Some(Instant::now() + Self::jittered_announce_interval(self.announce_interval));
@@ -1435,6 +1443,7 @@ impl RatioFaker {
             };
             match plan.execute().await {
                 Ok(response) => {
+                    self.stats.peers = response.peers.clone();
                     self.stats.seeders = response.complete;
                     self.stats.leechers = response.incomplete;
                     self.stats.announce_count += 1;
@@ -1507,6 +1516,7 @@ impl RatioFaker {
             last_announce: None,
             next_announce: None,
             announce_count: 0,
+            peers: Vec::new(),
             stop_condition_met: false,
             post_stop_action: config.post_stop_action,
         }
@@ -2709,6 +2719,7 @@ mod tests {
             complete: 12,
             incomplete: 4,
             warning: None,
+            peers: Vec::new(),
         }));
 
         assert!(matches!(faker.stats.state, FakerState::Running));

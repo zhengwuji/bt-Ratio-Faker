@@ -33,6 +33,7 @@
   import ConfigurationForm from './components/config/ConfigurationForm.svelte';
   import StopConditions from './components/config/StopConditions.svelte';
   import ProgressBars from './components/stats/ProgressBars.svelte';
+  import PeersDialog from './components/stats/PeersDialog.svelte';
   import SessionStats from './components/stats/SessionStats.svelte';
   import TotalStats from './components/stats/TotalStats.svelte';
   import RateGraph from './components/stats/RateGraph.svelte';
@@ -77,6 +78,7 @@
   let showAuthDialog = $state(false);
   let closePromptVisible = $state(false);
   let rememberCloseChoice = $state(false);
+  let peersDialogOpen = $state(false);
   let errorDialogOpen = $state(false);
   let errorDialogTitle = $state('Error');
   let errorDialogMessage = $state('');
@@ -1692,6 +1694,7 @@
         isRunning={$activeInstance?.isRunning || false}
         isPaused={$activeInstance?.isPaused || false}
         announceFeedback={getAnnounceFeedback($activeInstance)}
+        onShowPeers={() => (peersDialogOpen = true)}
         {startFaking}
         {stopFaking}
         {pauseFaking}
@@ -1946,6 +1949,12 @@
     </div>
   </div>
 {/if}
+
+<PeersDialog
+  bind:isOpen={peersDialogOpen}
+  peers={$activeInstance?.stats?.peers || []}
+  stats={$activeInstance?.stats || null}
+/>
 
 <BaseModal
   open={errorDialogOpen}

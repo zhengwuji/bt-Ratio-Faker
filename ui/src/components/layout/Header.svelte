@@ -12,6 +12,7 @@
     isRunning = false,
     isPaused = false,
     announceFeedback = null,
+    onShowPeers = null,
     startFaking = null,
     stopFaking = null,
     pauseFaking = null,
@@ -69,6 +70,7 @@
           {isRunning}
           {isPaused}
           {announceFeedback}
+          {onShowPeers}
           {startFaking}
           {stopFaking}
           {pauseFaking}

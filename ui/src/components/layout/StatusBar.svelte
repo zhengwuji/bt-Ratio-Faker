@@ -10,6 +10,7 @@
     isRunning = false,
     isPaused = false,
     announceFeedback = null, // { count, seeders, leechers } 运行中正常汇报反馈
+    onShowPeers = null,
     startFaking = null,
     stopFaking = null,
     pauseFaking = null,
@@ -136,18 +137,20 @@
       </p>
 
       {#if isRunning && !isPaused && announceFeedback}
-        <span
-          class="inline-flex w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-stat-upload/25 bg-stat-upload/10 px-2.5 py-1 text-[11px] font-semibold text-stat-upload"
-          title="Tracker 汇报正常:数字为成功汇报次数与当前做种/下载数"
+        <button
+          type="button"
+          class="inline-flex w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-stat-upload/25 bg-stat-upload/10 px-2.5 py-1 text-[11px] font-semibold text-stat-upload hover:bg-stat-upload/20 transition-colors cursor-pointer"
+          title="汇报正常。点击查看正在做种的 Peer 列表(IP/端口/客户端)"
+          onclick={() => onShowPeers && onShowPeers()}
         >
           <CircleCheck size={13} />
           {#if announceFeedback.count > 0}
             汇报正常 · 第 {announceFeedback.count} 次 · 做种 {announceFeedback.seeders} / 下载
-            {announceFeedback.leechers}
+            {announceFeedback.leechers} ⓘ
           {:else}
             等待首次汇报...
           {/if}
-        </span>
+        </button>
       {/if}
     </div>
 
