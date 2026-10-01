@@ -66,13 +66,24 @@ jobs:
         id: notes
         shell: bash
         run: |
-          # checkout 浅克隆可能把 tag 引用落在 commit 上(轻量化),强制重取注释 tag 对象
-          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" || true
-          BODY=$(git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}")
+          # checkout 可能本地把注释 tag 轻量化,因此优先走 GitHub API 读服务器上的 tag 注释
+          REF_JSON=$(curl -sf "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${GITHUB_REF_NAME}" || true)
+          TAG_SHA=$(printf '%s' "$REF_JSON" | jq -r --arg r "refs/tags/${GITHUB_REF_NAME}" '[.[] | select(.ref == $r)][0].object.sha // empty' 2>/dev/null || true)
+          BODY=""
+          if [ -n "$TAG_SHA" ]; then
+            TAG_JSON=$(curl -sf "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/tags/${TAG_SHA}" || true)
+            BODY=$(printf '%s' "$TAG_JSON" | jq -r 'select(.type == "tag") | ((.message // "") | split("\n\n") | .[1:] | join("\n\n"))' 2>/dev/null | sed '/./,$!d' || true)
+          fi
+          # 兜底:本地 tag 对象
+          if [ -z "$BODY" ]; then
+            BODY=$(git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}")
+          fi
           if [ -z "$BODY" ]; then
             BODY=$(git tag -l --format='%(contents:subject)' "${GITHUB_REF_NAME}")
           fi
           { printf '# 更新内容\n\n'; printf '%s\n' "$BODY"; } > release-notes.md
+          echo "---- release-notes.md ----"
+          cat release-notes.md
 
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
