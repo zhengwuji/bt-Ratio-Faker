@@ -93,3 +93,26 @@ jobs:
           files: Rustatio-${{ github.ref_name }}-win64.exe
           draft: false
           prerelease: false
+
+      # action-gh-release 对已存在的 Release 不会重写 body(例如重推 tag 时),
+      # 这里显式 PATCH 一次,确保中文说明始终与 tag 注释一致
+      - name: 同步 Release 中文说明
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          AUTH=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
+          RELEASE_ID=$(curl -sf "${AUTH[@]}" "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" | jq -r '.id // empty')
+          if [ -z "$RELEASE_ID" ]; then
+            # tag 被删过时 Release 会变 draft,该接口不返回 draft,从列表里按 tag_name 找
+            RELEASE_ID=$(curl -sf "${AUTH[@]}" "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq -r --arg t "${GITHUB_REF_NAME}" '[.[] | select(.tag_name == $t)][0].id // empty')
+          fi
+          if [ -n "$RELEASE_ID" ]; then
+            jq -n --rawfile body release-notes.md '{body: $body}' > release-payload.json
+            curl -sf -X PATCH "${AUTH[@]}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+              --data-binary @release-payload.json > /dev/null
+            echo "Release ${RELEASE_ID} 中文说明已同步"
+          else
+            echo "未找到已存在的 Release,跳过同步"
+          fi
